@@ -16,11 +16,11 @@ input,select,textarea{font:inherit;padding:4px 6px;border:1px solid #bbb;border-
 #login{max-width:420px;margin:80px auto}.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:6px 0}.small{font-size:12px;color:#666}
 .opt{display:inline-block;vertical-align:top;width:32%;min-width:380px;margin-right:1%}#status{font-size:13px}
 dialog{width:720px;max-width:95vw}dialog label{display:block;margin:6px 0}dialog input,dialog textarea{width:100%;box-sizing:border-box}
-.ge{display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;margin:2px 0 6px 10px}.ge textarea{width:100%}.cite{margin-bottom:4px}.tb{display:inline-block;padding:0 6px;border-radius:3px;font-size:11px;color:#fff;margin-right:3px}.t1{background:#17803d}.t2{background:#1f5f8b}.t3{background:#7b4fa0}.t4{background:#888}.t5{background:#bbb}</style></head><body>
+.ge{display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;margin:2px 0 6px 10px}.ge textarea{width:100%}.cite{margin-bottom:4px}.tb{display:inline-block;padding:0 6px;border-radius:3px;font-size:11px;color:#fff;margin-right:3px}.t1{background:#17803d}.t2{background:#1f5f8b}.t3{background:#7b4fa0}.t4{background:#888}.t5{background:#bbb}.gh{white-space:nowrap;background:#f7f7f7}.gh button{padding:0 3px;font-size:11px}.drag{cursor:grab}#gt td[contenteditable]{min-width:70px;max-width:260px}#gt td[contenteditable]:focus{outline:2px solid #1f5f8b;background:#eef6ff}.inv{background:#ffecec;outline:1px solid #e57373}</style></head><body>
 <div id="login" class="card"></div>
 <div id="appv" style="display:none">
 <header><h1>保健食品配方設計 <span class="small" style="color:#cfe6f7">機密・加密儲存</span></h1>
-<nav><button data-t="req">設計需求單</button><button data-t="ing">原料庫（後台）</button><button data-t="comp">競品比較</button><button data-t="saved">已存配方</button><button data-t="set">雲端同步/設定</button></nav>
+<nav><button data-t="grid">後台表格編輯</button><button data-t="req">設計需求單</button><button data-t="ing">原料庫（後台）</button><button data-t="comp">競品比較</button><button data-t="saved">已存配方</button><button data-t="set">雲端同步/設定</button></nav>
 <span id="status"></span><button class="btn2" onclick="lock()">登出</button></header>
 <main id="main"></main></div>
 <dialog id="dlg"></dialog>
@@ -34,7 +34,7 @@ async function encrypt(pw,obj){const salt=crypto.getRandomValues(new Uint8Array(
  return JSON.stringify({v:1,alg:'AES-256-GCM',kdf:'PBKDF2-SHA256',iter:ITER,salt:b64(salt),iv:b64(iv),ct:b64(ct)})}
 async function decrypt(pw,s){const o=JSON.parse(s);const k=await key(pw,ub64(o.salt));
  return JSON.parse(dec.decode(await crypto.subtle.decrypt({name:'AES-GCM',iv:ub64(o.iv)},k,ub64(o.ct))))}
-let PW=null,DB=null,CFG=null,TF=null,tab='req',lastGen=[],sha=null;
+let PW=null,DB=null,CFG=null,TF=null,tab='grid',lastGen=[],sha=null;
 const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const uid=()=>Math.random().toString(36).slice(2,10);
 // ---------- login ----------
@@ -46,7 +46,7 @@ function loginView(){const has=localStorage.fv_blob;
  <hr><p><b>B. 已在別台裝置使用：</b>輸入同一組密碼與 GitHub 權杖，從私人雲端庫下載。</p>
  <input id=rp type=password style="width:100%" placeholder="密碼"><input id=rr style="width:100%;margin-top:6px" value="yoyosu890524-byte/formula-vault" placeholder="私人儲存庫 owner/repo"><input id=rt type=password style="width:100%;margin-top:6px" placeholder="GitHub fine-grained 權杖">
  <div class=row><button class=btn onclick="doJoin()">從雲端下載並登入</button></div><span id=lm></span>`;
- $('#pw')?.addEventListener('keydown',e=>e.key=='Enter'&&(has?doLogin():0))}
+ $('#login').insertAdjacentHTML('beforeend',`<hr><p><b>試匯入預覽</b>（不需密碼）：先載入 Excel 檢視、編輯，不會保存；確認後再設定密碼保存。</p><button class=btn2 id=pvbtn onclick="startPreview()">試匯入預覽（不需密碼）</button>`);$('#pw')?.addEventListener('keydown',e=>e.key=='Enter'&&(has?doLogin():0))}
 async function doInit(){const p=$('#pw').value;if(p.length<10)return alert('密碼至少 10 碼');if(p!==$('#pw2').value)return alert('兩次密碼不一致');
  PW=p;DB=structuredClone(window.DEMO);DB.updated=Date.now();CFG={};await saveLocal();start()}
 async function doLogin(){$('#lm').textContent='解密中…';try{PW=$('#pw').value;DB=await decrypt(PW,localStorage.fv_blob);
@@ -54,12 +54,12 @@ async function doLogin(){$('#lm').textContent='解密中…';try{PW=$('#pw').val
 async function doJoin(){PW=$('#rp').value;CFG={repo:$('#rr').value.trim(),token:$('#rt').value.trim()};$('#lm').textContent='下載中…';
  try{const r=await gh('GET');if(!r)throw'雲端尚無資料';DB=await decrypt(PW,r);await migrate();await saveLocal(false);start()}catch(e){PW=null;$('#lm').innerHTML='<span class=bad>失敗：'+esc(e.message||e)+'</span>'}}
 function lock(){PW=DB=CFG=null;location.reload()}
-async function start(){$('#login').style.display='none';$('#appv').style.display='';
- document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{tab=b.dataset.t;render()});render();
+async function start(){G=null;$('#login').style.display='none';$('#appv').style.display='';
+ document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{document.activeElement?.blur?.();tab=b.dataset.t;if(tab=='grid'&&G&&!G.dirty)G=null;render()});render();
  try{const r=await fetch('/tfda-lookup/data.json');TF=await r.json();render()}catch(e){status('<span class=bad>TFDA 資料載入失敗</span>')}}
 function status(h){$('#status').innerHTML=h}
 // ---------- storage ----------
-async function saveLocal(push=true){DB.updated=Date.now();localStorage.fv_blob=await encrypt(PW,DB);localStorage.fv_cfg=await encrypt(PW,CFG);
+async function saveLocal(push=true){if(PREVIEW||!PW){status('<span class=warn>試匯入預覽：未保存</span>');return}DB.updated=Date.now();localStorage.fv_blob=await encrypt(PW,DB);localStorage.fv_cfg=await encrypt(PW,CFG);
  status('已加密儲存於本機 '+new Date().toLocaleTimeString('zh-TW'));if(push&&CFG.token)await pushCloud()}
 async function gh(method,body){const u=`https://api.github.com/repos/${CFG.repo}/contents/vault.enc.json`;
  const h={Authorization:'Bearer '+CFG.token,Accept:'application/vnd.github+json'};
@@ -70,7 +70,7 @@ async function gh(method,body){const u=`https://api.github.com/repos/${CFG.repo}
 async function pushCloud(){try{if(sha===null)await gh('GET');await gh('PUT',localStorage.fv_blob);status('已加密同步至雲端 '+new Date().toLocaleTimeString('zh-TW'))}catch(e){status('<span class=bad>雲端同步失敗：'+esc(e.message)+'</span>')}}
 async function pull(auto){try{const s=await gh('GET');if(!s){if(!auto)alert('雲端尚無資料，將上傳本機資料');return pushCloud()}
  const d=await decrypt(PW,s);if(auto&&d.updated<=DB.updated){if(d.updated<DB.updated)pushCloud();return status('雲端已是最新')}
- DB=d;await migrate();await saveLocal(false);render();status('已從雲端載入最新版')}catch(e){status('<span class=bad>雲端讀取失敗：'+esc(e.message)+'</span>')}}
+ DB=d;G=null;await migrate();await saveLocal(false);render();status('已從雲端載入最新版')}catch(e){status('<span class=bad>雲端讀取失敗：'+esc(e.message)+'</span>')}}
 // ---------- TFDA ----------
 function tfda(ing){if(!TF)return{lv:'',txt:'TFDA 資料載入中'};const q=(ing.tfdaName||ing.name||'').trim();if(!q)return{lv:'warn',txt:'未指定 TFDA 對照名稱'};
  const nm=s=>(s||'').split(/[；;、,，]/).map(x=>x.trim().toLowerCase());const ql=q.toLowerCase();
@@ -126,9 +126,9 @@ async function migrate(){let ch=false;DB.ingredients.forEach(i=>{const dm=i.demo
 function evidence(i){const n={};(i.cites||[]).forEach(c=>n[c.type||'未分類']=(n[c.type||'未分類']||0)+1);const top=(i.cites||[])[0];
  return top?`<div class=small><b>證據等級：</b>${TYPES.filter(t=>n[t]).map(t=>t+' '+n[t]+' 篇').join('、')}；首要依據 PMID ${esc(top.pmid||'—')}（${esc(top.type||'未分類')}）</div>`:''}
 // ---------- views ----------
-function render(){document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.t==tab));
+function render(){if(G)flush();document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.t==tab));
  const hasDemo=DB.ingredients.some(i=>i.demo)||DB.competitors.some(c=>c.demo);
- $('#main').innerHTML=(hasDemo?`<div class=banner>目前含有<span class=demo>示範資料</span>（非真實原料/競品，僅供測試）。匯入您的 Excel 後可於「原料庫」一鍵刪除示範資料。</div>`:'')+V[tab]()}
+ $('#main').innerHTML=(PREVIEW?`<div class=banner style="background:#ffe0e0;border-color:#e57373"><b>試匯入預覽模式：資料不會保存到任何地方</b>（未加密、未存本機、未上傳；關閉或重新整理頁面就會消失）。<button class=btn onclick="pwDlg()">設定密碼並保存</button></div>`:'')+(hasDemo&&!PREVIEW?`<div class=banner>目前含有<span class=demo>示範資料</span>（非真實原料/競品，僅供測試）。匯入您的 Excel 後可於「原料庫」一鍵刪除示範資料。</div>`:'')+V[tab]()}
 const FORMS={膠囊:{u:'顆',w:500,unit:'mg'},錠劑:{u:'錠',w:800,unit:'mg'},液劑:{u:'瓶',w:30,unit:'mL'},粉包:{u:'包',w:3,unit:'g'},果凍:{u:'條',w:15,unit:'g'},軟膠囊:{u:'顆',w:600,unit:'mg'}};
 const V={};
 V.req=()=>{const r=DB.lastReq||{form:'膠囊',w:500,unit:'mg',pack:'顆',per:1,day:2,claim:'護眼'};
@@ -165,7 +165,7 @@ function compTable(Fs,...cs){const names=new Set();Fs.forEach(F=>F.items.filter(
  return `<h4>與競品比較（每日活性/成分含量 mg）</h4><table><tr><th>成分</th>${Fs.map(F=>`<th>${esc(F.name)}</th>`).join('')}${cs.map(c=>`<th>${esc(c.name)}<br><a class=small href="${esc(c.url)}" target=_blank>來源</a></th>`).join('')}</tr>
  ${[...names].map(n=>{const fv=Fs.map(F=>{const it=F.items.find(i=>!i.fill&&ingById(i.id).name==n);return it?it.dayActive:null});const cv=cs.map(c=>{const it=c.items.find(i=>i.name==n);return it?+it.mg:null});
   return `<tr><td>${esc(n)}</td>${fv.map(v=>`<td>${v==null?'<span class=small>無</span>':fmt(v)}</td>`).join('')}${cv.map(v=>{const f=fv[0];const tag=v==null?'<span class=small>無</span>':fmt(v)+(f==null?' <span class=warn>（我方無）</span>':f>v?' <span class=ok>我方較高</span>':f<v?' <span class=warn>我方較低</span>':' 相同');return `<td>${tag}</td>`}).join('')}</tr>`}).join('')}</table>`}
-V.ing=()=>`<div class=card><h3>原料庫（後台）</h3><div class=row><label class=btn2>匯入 Excel/CSV <input type=file id=xl accept=".xlsx,.xls,.csv" style="display:none" onchange="importXL(this.files[0])"></label>
+V.ing=()=>`<div class=card><h3>原料庫（後台）</h3><div class=row><label class=btn2>匯入 Excel/CSV <input type=file id=xl accept=".xlsx,.xls,.csv" style="display:none" onchange="impStart(this.files[0])"></label>
  <button class=btn2 onclick="editIng()">＋新增原料</button><button class=btn2 onclick="delDemo()">刪除全部示範資料</button><span id=im class=small></span></div>
  <p class=small>Excel 欄位（名稱可彈性）：原料編號、原料名稱、廠牌、活性成分、活性成分濃度(%)、TFDA對照名稱、訴求、每日最低劑量(mg)、每日最高劑量(mg)、成本價、賦形劑(是/否)。依「原料編號」合併：相同編號更新、新編號新增。</p>
  <table><tr><th>編號</th><th>名稱</th><th>廠牌</th><th>活性成分/濃度</th><th>訴求</th><th>每日劑量(活性 mg)</th><th>成本價</th><th>TFDA</th><th>文獻</th><th></th></tr>
@@ -217,5 +217,98 @@ V.set=()=>`<div class=card><h3>雲端同步（多裝置）</h3><p>資料以您�
  <p class=small>狀態：${CFG.token?'已設定權杖':'<span class=warn>未設定（目前只存在本機）</span>'}　最後修改：${new Date(DB.updated).toLocaleString('zh-TW')}</p></div>
  <div class=card><h3>備份</h3><button class=btn2 onclick="const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([localStorage.fv_blob]));a.download='formula-vault.enc.json';a.click()">下載加密備份檔</button>
  <h3>更換密碼</h3><input id=np type=password placeholder="新密碼（至少 10 碼）"> <button class=btn2 onclick="if(np.value.length<10)return alert('至少 10 碼');PW=np.value;saveLocal().then(()=>alert('已更換；其他裝置請用新密碼重新設定'))">更換</button></div>`;
+// ---------- 後台表格編輯 ----------
+let PREVIEW=false,G=null,IMP=null;
+const BASECOLS=[['code','原料編號'],['name','原料名稱'],['brand','廠牌'],['active','活性成分'],['conc','活性成分濃度(%)'],['tfdaName','TFDA對照名稱'],['claims','訴求'],['minDose','每日最低劑量(mg)'],['maxDose','每日最高劑量(mg)'],['cost','成本價'],['excipient','賦形劑'],['rationale','設計理由']];
+const NUMK=['conc','minDose','maxDose'],BASEK=BASECOLS.map(c=>c[0]);
+const defCols=()=>BASECOLS.map(([key,label])=>({key,label,hidden:key=='rationale'}));
+const mkIng=o=>({id:uid(),code:'',name:'',brand:'',active:'',conc:'',tfdaName:'',claims:'',minDose:'',maxDose:'',cost:'',excipient:false,rationale:'',cites:[],extra:{},...o});
+const gv=(i,k)=>BASEK.includes(k)?(k=='excipient'?(i.excipient?'是':''):i[k]):(i.extra||{})[k];
+function sv(i,k,v){v=String(v??'').trim();if(k=='excipient')i.excipient=/^(是|y|yes|true|1|v|✓)$/i.test(v);
+ else if(NUMK.includes(k))i[k]=v===''?'':(isFinite(+v.replace(/%$/,''))?+v.replace(/%$/,''):v);else if(BASEK.includes(k))i[k]=v;else{i.extra=i.extra||{};i.extra[k]=v}}
+function gridInit(){G={rows:structuredClone(DB.ingredients),cols:structuredClone(DB.cols||defCols()),undo:[],sel:new Set(),filter:'',dirty:false,sortK:null,sortD:1}}
+function flush(){const ae=document.activeElement;if(ae?.matches?.('#gt td[data-k]')){cellCommit(ae);ae.dataset.k='';ae.blur()}}
+function snap(){G.undo.push(JSON.stringify({rows:G.rows,cols:G.cols}));if(G.undo.length>50)G.undo.shift();G.dirty=true}
+function undo(){flush();const s=G.undo.pop();if(!s)return;const o=JSON.parse(s);G.rows=o.rows;G.cols=o.cols;G.dirty=true;render()}
+const vis=()=>G.cols.filter(c=>!c.hidden);
+function shown(){const f=G.filter.trim().toLowerCase();return G.rows.filter(i=>!f||G.cols.some(c=>String(gv(i,c.key)??'').toLowerCase().includes(f)))}
+function vErr(i,k,dups){const v=gv(i,k);
+ if(k=='code'&&v&&dups.has(v))return'原料編號重複';if(k=='name'&&!v)return'缺原料名稱';
+ if(NUMK.includes(k)&&v!==''&&v!=null&&(typeof v!='number'))return'需為數字';if(k=='conc'&&typeof v=='number'&&(v<0||v>100))return'濃度應介於 0–100%';
+ if(k=='maxDose'&&typeof v=='number'&&typeof i.minDose=='number'&&v<i.minDose)return'最高劑量小於最低劑量';
+ if(k=='tfdaName'&&v&&TF){const t=tfda(i);if(t.lv=='warn')return t.txt;if(t.lv=='bad')return t.txt}return''}
+function dupSet(rows){const c={};rows.forEach(i=>i.code&&(c[i.code]=(c[i.code]||0)+1));return new Set(Object.keys(c).filter(k=>c[k]>1))}
+V.grid=()=>{if(!G)gridInit();const cols=vis(),rows=shown(),d=dupSet(G.rows);let nErr=0;
+ const body=rows.map((i,ri)=>`<tr draggable=true data-id="${i.id}"><td class=gh><input type=checkbox ${G.sel.has(i.id)?'checked':''} onchange="this.checked?G.sel.add('${i.id}'):G.sel.delete('${i.id}')"> <span class=drag title="拖曳排序">⠿</span><button onclick="mvRow('${i.id}',-1)">▲</button><button onclick="mvRow('${i.id}',1)">▼</button><button title=複製 onclick="dupRow('${i.id}')">⎘</button><button title=刪除 onclick="delRows(['${i.id}'])">✕</button>${i.demo?'<span class=demo>示範</span>':''}</td>
+ ${cols.map((c,ci)=>{const e=vErr(i,c.key,d);if(e)nErr++;return `<td contenteditable data-ri=${ri} data-ci=${ci} data-k="${esc(c.key)}" class="${e?'inv':''}" title="${esc(e)}">${esc(gv(i,c.key))}</td>`}).join('')}</tr>`).join('');
+ return `${PREVIEW?'':''}<div class=card><h3>後台表格編輯 ${G.dirty?'<span class=bad id=dirty>● 尚未儲存的變更</span>':'<span class=ok id=dirty>✓ 已儲存</span>'}</h3>
+ <div class=row><button class=btn onclick="saveGrid()">${PREVIEW?'套用（預覽，不會保存）':'儲存'}</button><button class=btn2 onclick="undo()" ${G.undo.length?'':'disabled'}>↶ 復原 (${G.undo.length})</button>
+ <button class=btn2 onclick="snap();G.rows.push(mkIng());render();moveTo(shown().length-1,0)">＋新增列</button><button class=btn2 onclick="delRows([...G.sel])">刪除勾選 (${G.sel.size})</button>
+ <label class=btn2>匯入 Excel <input type=file accept=".xlsx,.xls,.csv" style="display:none" onchange="impStart(this.files[0])"></label><button class=btn2 onclick="exportXL()">匯出 .xlsx</button>
+ <button class=btn2 onclick="colDlg()">欄位設定</button> 搜尋/篩選 <input id=gf value="${esc(G.filter)}" oninput="G.filter=this.value;clearTimeout(window._gf);window._gf=setTimeout(()=>{render();const e=$('#gf');e.focus();e.setSelectionRange(e.value.length,e.value.length)},250)" style="width:180px">
+ <span class=small>顯示 ${rows.length}/${G.rows.length} 列；${nErr?`<span class=bad>${nErr} 個格子有問題（紅框，滑鼠移上看原因）</span>`:'<span class=ok>無驗證問題</span>'}</span></div>
+ <p class=small>直接點格子編輯；Enter 下一列、Tab 下一欄、方向鍵移動；可從 Excel 複製多格後貼上（超出會自動新增列）；點欄名排序。</p>
+ <div style="overflow:auto;max-height:70vh"><table id=gt><tr><th class=gh><input type=checkbox onchange="shown().forEach(i=>this.checked?G.sel.add(i.id):G.sel.delete(i.id));render()"></th>${cols.map(c=>`<th onclick="sortBy('${c.key}')" style="cursor:pointer">${esc(c.label)}${G.sortK==c.key?(G.sortD>0?' ▲':' ▼'):''}</th>`).join('')}</tr>${body}</table></div></div>`};
+function sortBy(k){snap();G.sortD=G.sortK==k?-G.sortD:1;G.sortK=k;const d=G.sortD;G.rows.sort((a,b)=>{const x=gv(a,k)??'',y=gv(b,k)??'';return (typeof x=='number'&&typeof y=='number'?x-y:String(x).localeCompare(String(y),'zh-Hant',{numeric:true}))*d});render()}
+function mvRow(id,dir){const k=G.rows.findIndex(r=>r.id==id),j=k+dir;if(j<0||j>=G.rows.length)return;snap();[G.rows[k],G.rows[j]]=[G.rows[j],G.rows[k]];G.sortK=null;render()}
+function dupRow(id){snap();const k=G.rows.findIndex(r=>r.id==id);const c=structuredClone(G.rows[k]);c.id=uid();c.demo=false;c.code=c.code?c.code+'-複製':'';G.rows.splice(k+1,0,c);render()}
+function delRows(ids){if(!ids.length)return alert('請先勾選');if(!confirm(`刪除 ${ids.length} 列？（可復原）`))return;snap();G.rows=G.rows.filter(r=>!ids.includes(r.id));ids.forEach(i=>G.sel.delete(i));render()}
+function moveTo(ri,ci){const c=document.querySelector(`#gt td[data-ri="${ri}"][data-ci="${ci}"]`);if(!c)return;c.focus();const s=getSelection(),r=document.createRange();r.selectNodeContents(c);s.removeAllRanges();s.addRange(r)}
+function cellCommit(td){const tr=td.closest('tr'),i=G.rows.find(r=>r.id==tr.dataset.id);if(!i)return;const k=td.dataset.k,old=String(gv(i,k)??''),nv=td.innerText.replace(/\n+$/,'');
+ if(old===nv.trim())return;snap();sv(i,k,nv);G.sortK=null;refreshMarks()}
+function refreshMarks(){const d=dupSet(G.rows);let n=0;document.querySelectorAll('#gt td[data-k]').forEach(td=>{const i=G.rows.find(r=>r.id==td.closest('tr').dataset.id);const e=vErr(i,td.dataset.k,d);if(e)n++;td.classList.toggle('inv',!!e);td.title=e});
+ const dd=$('#dirty');if(dd){dd.className='bad';dd.textContent='● 尚未儲存的變更'}}
+document.addEventListener('focusout',e=>{if(e.target.matches?.('#gt td[data-k]'))cellCommit(e.target)});
+document.addEventListener('keydown',e=>{const td=e.target.closest?.('#gt td[data-k]');if(!td)return;const ri=+td.dataset.ri,ci=+td.dataset.ci;
+ const at=()=>{const s=getSelection();if(!s.rangeCount)return[0,0];const r=s.getRangeAt(0);return[r.startOffset,r.endOffset,td.innerText.length]};
+ if(e.key=='Enter'&&!e.shiftKey){e.preventDefault();td.blur();moveTo(ri+1,ci)}else if(e.key=='Tab'){e.preventDefault();td.blur();const n=vis().length;let r=ri,c=ci+(e.shiftKey?-1:1);if(c>=n){c=0;r++}if(c<0){c=n-1;r--}moveTo(r,c)}
+ else if(e.key=='ArrowDown'){e.preventDefault();td.blur();moveTo(ri+1,ci)}else if(e.key=='ArrowUp'){e.preventDefault();td.blur();moveTo(ri-1,ci)}
+ else if(e.key=='ArrowRight'||e.key=='ArrowLeft'){const[s,en,len]=at();const all=s==0&&en==len;if(all||(e.key=='ArrowRight'?en>=len:s<=0)){e.preventDefault();td.blur();moveTo(ri,ci+(e.key=='ArrowRight'?1:-1))}}
+ else if(e.key=='Escape'){const i=G.rows.find(r=>r.id==td.closest('tr').dataset.id);td.innerText=gv(i,td.dataset.k)??'';td.blur()}
+ else if((e.ctrlKey||e.metaKey)&&e.key=='z'){e.preventDefault();undo()}});
+document.addEventListener('paste',e=>{const td=e.target.closest?.('#gt td[data-k]');if(!td)return;const t=e.clipboardData.getData('text/plain');if(!/[\t\n]/.test(t.replace(/\r?\n$/,'')))return;
+ e.preventDefault();pasteTSV(+td.dataset.ri,+td.dataset.ci,t)});
+function pasteTSV(ri,ci,t){flush();const m=t.replace(/\r/g,'').replace(/\n$/,'').split('\n').map(l=>l.split('\t'));snap();const rows=shown(),cols=vis();
+ m.forEach((line,dr)=>{let i=rows[ri+dr];if(!i){i=mkIng();G.rows.push(i);rows.push(i)}line.forEach((v,dc)=>{const c=cols[ci+dc];if(c)sv(i,c.key,v)})});G.sortK=null;render()}
+let DRAG=null;document.addEventListener('dragstart',e=>{const tr=e.target.closest?.('#gt tr[data-id]');if(tr)DRAG=tr.dataset.id});
+document.addEventListener('dragover',e=>{if(DRAG&&e.target.closest?.('#gt tr[data-id]'))e.preventDefault()});
+document.addEventListener('drop',e=>{const tr=e.target.closest?.('#gt tr[data-id]');if(!DRAG||!tr)return;e.preventDefault();const a=G.rows.findIndex(r=>r.id==DRAG),b=G.rows.findIndex(r=>r.id==tr.dataset.id);DRAG=null;if(a<0||b<0||a==b)return;snap();const[x]=G.rows.splice(a,1);G.rows.splice(b,0,x);G.sortK=null;render()});
+window.addEventListener('beforeunload',e=>{if(G?.dirty||PREVIEW&&G?.rows.length){e.preventDefault();e.returnValue=''}});
+function colDlg(){dlg.innerHTML=`<h3>欄位設定</h3><table>${G.cols.map((c,n)=>`<tr><td><input type=checkbox ${c.hidden?'':'checked'} style="width:auto" onchange="snap();G.cols[${n}].hidden=!this.checked"> 顯示</td><td><input value="${esc(c.label)}" onchange="snap();G.cols[${n}].label=this.value"></td><td class=small>${BASEK.includes(c.key)?'系統欄位':'自訂欄位'}</td>
+ <td><button onclick="mvCol(${n},-1)">▲</button><button onclick="mvCol(${n},1)">▼</button>${BASEK.includes(c.key)?'':`<button onclick="if(confirm('刪除此自訂欄與其資料？')){snap();G.cols.splice(${n},1);colDlg()}">✕</button>`}</td></tr>`).join('')}</table>
+ <div class=row><input id=nc placeholder="新自訂欄名稱" style="width:200px"><button class=btn2 onclick="if(nc.value.trim()){snap();G.cols.push({key:'x_'+uid(),label:nc.value.trim(),hidden:false});colDlg()}">＋新增欄</button></div><div class=row><button class=btn onclick="dlg.close();render()">完成</button></div>`;if(!dlg.open)dlg.showModal()}
+function mvCol(n,d){const j=n+d;if(j<0||j>=G.cols.length)return;snap();[G.cols[n],G.cols[j]]=[G.cols[j],G.cols[n]];colDlg()}
+async function saveGrid(){document.activeElement?.blur?.();DB.ingredients=structuredClone(G.rows);DB.cols=structuredClone(G.cols);
+ if(PREVIEW){G.dirty=false;render();status('<span class=warn>試匯入預覽：已套用，但尚未保存</span>');return}await saveLocal();G.dirty=false;render()}
+function exportXL(){document.activeElement?.blur?.();const cols=vis();const aoa=[cols.map(c=>c.label)].concat(G.rows.map(i=>cols.map(c=>{const v=gv(i,c.key);return v??''})));
+ const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(aoa),'原料');XLSX.writeFile(wb,'原料庫_'+new Date().toLocaleDateString('sv')+'.xlsx')}
+// ---- import with mapping preview + diff ----
+async function impStart(f){if(!G)gridInit();const wb=XLSX.read(await f.arrayBuffer());const aoa=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:'',raw:false});
+ const hdr=(aoa[0]||[]).map(String),data=aoa.slice(1).filter(r=>r.some(v=>String(v).trim()));const used=new Set();
+ const map=hdr.map(h=>{const k=mapCol(h);if(k&&!used.has(k)){used.add(k);return k}const ex=G.cols.find(c=>!BASEK.includes(c.key)&&c.label==h);return ex?ex.key:(h.trim()?'new:'+h:'')});
+ IMP={file:f.name,hdr,data,map};tab='imp';render()}
+function impRows(){const o=IMP.data.map(r=>{const i=mkIng();IMP.map.forEach((k,n)=>{if(!k)return;const kk=k.startsWith('new:')?k:k;if(kk.startsWith('new:')){i.extra[kk]=String(r[n]??'').trim()}else{sv(i,kk,r[n]);if(kk=='conc'&&typeof i.conc=='number'&&i.conc<=1&&i.conc>0&&!/%/.test(r[n]))i.conc=+(i.conc*100).toFixed(4)}});return i});return o}
+function impDiff(){const by={};G.rows.forEach(r=>r.code&&(by[r.code]=r));return impRows().map(n=>{const ex=n.code&&by[n.code];if(!ex)return{n,st:'新增'};
+ const ch=IMP.map.filter(Boolean).filter(k=>!k.startsWith('new:')).filter(k=>String(gv(ex,k)??'')!==String(gv(n,k)??''));
+ const chx=IMP.map.filter(k=>k&&k.startsWith('new:')).filter(k=>{const c=G.cols.find(c=>c.label==k.slice(4));return !c||String((ex.extra||{})[c.key]??'')!==String(n.extra[k]??'')});
+ return{n,ex,st:ch.length||chx.length?'更新':'不變',ch:ch.concat(chx)}})}
+V.imp=()=>{if(!IMP)return'<div class=card>請從「後台表格編輯」選擇檔案</div>';const opts=[['','（忽略此欄）'],...BASECOLS,...G.cols.filter(c=>!BASEK.includes(c.key)).map(c=>[c.key,'自訂：'+c.label])];
+ const diff=impDiff(),cnt={新增:0,更新:0,不變:0};diff.forEach(d=>cnt[d.st]++);const d0=dupSet(diff.map(x=>x.n));
+ return `<div class=card><h3>匯入預覽：${esc(IMP.file)}</h3><p>確認每一欄要對應到哪個欄位（下拉可修正），檢查每列差異後再按「確認匯入」。依「原料編號」比對：相同編號→更新，新編號→新增。</p>
+ <div class=row><b>新增 ${cnt.新增}</b>・<b>更新 ${cnt.更新}</b>・不變 ${cnt.不變}<button class=btn onclick="impCommit()">確認匯入</button><button class=btn2 onclick="IMP=null;tab='grid';render()">取消</button></div>
+ <div style="overflow:auto;max-height:70vh"><table><tr><th>狀態</th>${IMP.hdr.map((h,n)=>`<th>${esc(h)}<br><select onchange="IMP.map[${n}]=this.value;render()">${opts.map(([k,l])=>`<option value="${esc(k)}" ${IMP.map[n]==k?'selected':''}>${esc(l)}</option>`).join('')}<option value="new:${esc(h)}" ${IMP.map[n]=='new:'+h?'selected':''}>＋新增自訂欄「${esc(h)}」</option></select></th>`).join('')}</tr>
+ ${diff.map((d,r)=>`<tr><td class=${d.st=='新增'?'ok':d.st=='更新'?'warn':'small'}>${d.st}${d.ch?.length?'<br><span class=small>'+d.ch.map(k=>esc(k.startsWith('new:')?k.slice(4):(BASECOLS.find(c=>c[0]==k)||[,k])[1])).join('、')+'</span>':''}</td>${IMP.data[r].map((v,n)=>{const k=IMP.map[n];const e=k&&!k.startsWith('new:')?vErr(d.n,k,d0):'';return `<td class="${e?'inv':''}" title="${esc(e)}">${esc(v)}</td>`}).join('')}</tr>`).join('')}</table></div></div>`};
+function impCommit(){snap();IMP.map.forEach(k=>{if(k&&k.startsWith('new:')&&!G.cols.some(c=>c.label==k.slice(4)))G.cols.push({key:'x_'+uid(),label:k.slice(4),hidden:false})});
+ const keyOf=k=>k.startsWith('new:')?G.cols.find(c=>c.label==k.slice(4)).key:k;
+ impDiff().forEach(d=>{const n=d.n;const ex2={};Object.entries(n.extra).forEach(([k,v])=>ex2[keyOf(k)]=v);n.extra=ex2;
+  if(d.st=='新增')G.rows.push(n);else if(d.st=='更新'){IMP.map.forEach(k=>{if(!k)return;const kk=keyOf(k);sv(d.ex,kk,gv(n,kk));});d.ex.demo=false}});
+ IMP=null;tab='grid';render();status(PREVIEW?'<span class=warn>已匯入到預覽表格（尚未保存）</span>':'已匯入到表格，請按「儲存」')}
+// ---- preview mode ----
+function startPreview(){PREVIEW=true;PW=null;CFG={};DB={ingredients:[],competitors:[],formulas:[],schema:2,cols:defCols(),updated:Date.now()};tab='grid';start()}
+function pwDlg(){dlg.innerHTML=`<h3>設定密碼並保存</h3><p>設定後，目前預覽中的資料（含您的編輯）會以此密碼加密並保存在本機${localStorage.fv_blob?'<br><b class=bad>注意：此裝置已有加密資料，將被取代</b>':''}。</p>
+ <label>密碼（至少 10 碼）<input id=np1 type=password></label><label>再輸入一次<input id=np2 type=password></label><div class=row><button class=btn onclick="pwSave()">保存</button><button class=btn2 onclick="dlg.close()">取消</button></div>`;dlg.showModal()}
+async function pwSave(){const p=np1.value;if(p.length<10)return alert('密碼至少 10 碼');if(p!==np2.value)return alert('兩次密碼不一致');
+ document.activeElement?.blur?.();if(G){DB.ingredients=structuredClone(G.rows);DB.cols=structuredClone(G.cols)}PW=p;PREVIEW=false;dlg.close();await saveLocal(false);if(G)G.dirty=false;render();alert('已加密保存。之後請用此密碼登入。')}
+
 loginView();
 </script></body></html>
