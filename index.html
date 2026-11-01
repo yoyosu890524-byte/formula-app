@@ -16,7 +16,7 @@ input,select,textarea{font:inherit;padding:4px 6px;border:1px solid #bbb;border-
 #login{max-width:420px;margin:80px auto}.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:6px 0}.small{font-size:12px;color:#666}
 .opt{display:inline-block;vertical-align:top;width:32%;min-width:380px;margin-right:1%}#status{font-size:13px}
 dialog{width:720px;max-width:95vw}dialog label{display:block;margin:6px 0}dialog input,dialog textarea{width:100%;box-sizing:border-box}
-</style></head><body>
+.ge{display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;margin:2px 0 6px 10px}.ge textarea{width:100%}.cite{margin-bottom:4px}</style></head><body>
 <div id="login" class="card"></div>
 <div id="appv" style="display:none">
 <header><h1>保健食品配方設計 <span class="small" style="color:#cfe6f7">機密・加密儲存</span></h1>
@@ -88,7 +88,12 @@ function tfdaCell(ing,dayActive,dayRaw,servRaw,servTotal){const t=tfda(ing);let 
   if(l.gkg!=null&&servTotal){const v=servRaw/servTotal*1000;h+=`<br><span class=${v>l.gkg?'bad':'ok'}>膠囊/錠上限 ${l.gkg} g/kg，本配方 ${v.toFixed(2)} g/kg ${v>l.gkg?'⚠ 超量':'✓'}</span>`}});
  const n=(t.hits||[]).map(x=>x.note).filter(Boolean).join('\n');if(n)h+=`<details><summary class=small>TFDA 備註/用量規定</summary><div class=small style="white-space:pre-wrap;max-width:420px">${esc(n.slice(0,1500))}</div></details>`;return h}
 // ---------- citations ----------
-function citeHtml(i){return i.cites?.length?i.cites.map(c=>`<div class=small>• <a href="${esc(c.url)}" target=_blank>${esc(c.title)}</a> <i>${esc(c.journal)}</i>, ${esc(c.year)}${c.pmid?' PMID '+esc(c.pmid):''}</div>`).join(''):'<span class=warn>尚無文獻</span>'}
+function citeHtml(i){return i.cites?.length?i.cites.map(c=>`<div class=cite><div class=small>• <a href="${esc(c.url)}" target=_blank>${esc(c.title)}</a> <i>${esc(c.journal)}</i>, ${esc(c.year)}${c.pmid?' PMID '+esc(c.pmid):''}</div>
+ <div class=ge><div><b>組別與劑量</b><br>${esc(c.groups)||'<span class=warn>摘要未載明</span>'}</div><div><b>功效</b><br>${esc(c.effect)||'<span class=warn>待填（依摘要）</span>'}</div></div></div>`).join(''):'<span class=warn>尚無文獻</span>'}
+async function abstractOf(pmid){const t=await (await fetch('https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&rettype=abstract&retmode=text&id='+pmid)).text();
+ const p=t.split(/\n\n/).filter(x=>!/^(Author information|DOI|PMID|Copyright|©|Conflict)/.test(x.trim()));return p.sort((a,b)=>b.length-a.length)[0]?.replace(/\s+/g,' ')||''}
+async function showAbs(n){const c=ED.cites[n];const el=$('#abs'+n);el.textContent='載入摘要中…';try{const a=c.pmid?await abstractOf(c.pmid):'';el.textContent=a.length>200?a:'（PubMed 無摘要）';
+ if(a.length<=200&&!c.effect){sync();ED.cites[n].effect='摘要未載明';drawEd()}}catch(e){el.textContent='摘要載入失敗'}}
 async function pubmed(q){const e='https://eutils.ncbi.nlm.nih.gov/entrez/eutils/';
  const s=await (await fetch(e+'esearch.fcgi?db=pubmed&retmode=json&retmax=5&sort=relevance&term='+encodeURIComponent(q))).json();const ids=s.esearchresult.idlist;if(!ids.length)return[];
  const r=(await (await fetch(e+'esummary.fcgi?db=pubmed&retmode=json&id='+ids.join(','))).json()).result;
@@ -159,12 +164,14 @@ function drawEd(){const i=ED,F=(k,l,t='text')=>`<label>${l}<input id=e_${k} type
  dlg.innerHTML=`<h3>${i._new?'新增':'編輯'}原料</h3>${F('code','原料編號')}${F('name','原料名稱')}${F('brand','廠牌')}${F('active','活性成分')}${F('conc','活性成分濃度 (%)','number')}${F('tfdaName','TFDA 對照名稱（TFDA 上的中文/英文名）')}${F('claims','訴求標籤（逗號分隔）')}
  <div class=row>${F('minDose','每日最低劑量（活性 mg）','number')}${F('maxDose','每日最高劑量（活性 mg）','number')}</div>${F('cost','成本價（預留，例：NT$/kg）')}<label><input type=checkbox id=e_excipient ${i.excipient?'checked':''} style="width:auto"> 賦形劑（用於補足重量）</label>
  <label>設計理由<textarea id=e_rationale rows=3>${esc(i.rationale)}</textarea></label><b>文獻</b>
- ${i.cites.map((c,n)=>`<div class=row style="flex-wrap:nowrap"><input value="${esc(c.title)}" onchange="ED.cites[${n}].title=this.value" placeholder=篇名><input value="${esc(c.journal)}" onchange="ED.cites[${n}].journal=this.value" placeholder=期刊 style="width:140px"><input value="${esc(c.year)}" onchange="ED.cites[${n}].year=this.value" style="width:60px" placeholder=年><input value="${esc(c.url)}" onchange="ED.cites[${n}].url=this.value" placeholder=連結><button onclick="sync();ED.cites.splice(${n},1);drawEd()">✕</button></div>`).join('')||'<div class=warn>尚無文獻</div>'}
- <div class=row><button class=btn2 onclick="sync();ED.cites.push({title:'',journal:'',year:'',url:''});drawEd()">＋手動新增</button> PubMed 搜尋 <input id=pq style="width:260px" value="${esc(i.active||i.name)}"><button class=btn2 onclick="pmSearch()">搜尋</button></div><div id=pr></div>
+ ${i.cites.map((c,n)=>`<div style="border:1px solid #ddd;padding:6px;margin:6px 0;border-radius:4px"><div class=row style="flex-wrap:nowrap"><input value="${esc(c.title)}" onchange="ED.cites[${n}].title=this.value" placeholder=篇名><input value="${esc(c.journal)}" onchange="ED.cites[${n}].journal=this.value" placeholder=期刊 style="width:140px"><input value="${esc(c.year)}" onchange="ED.cites[${n}].year=this.value" style="width:60px" placeholder=年><input value="${esc(c.url)}" onchange="ED.cites[${n}].url=this.value" placeholder=連結><button onclick="sync();ED.cites.splice(${n},1);drawEd()">✕</button></div>
+ <div class=ge><label>組別與劑量<textarea rows=3 onchange="ED.cites[${n}].groups=this.value">${esc(c.groups)}</textarea></label><label>功效（僅依摘要：改善指標、幅度、與對照組差異/p值；無則填「摘要未載明」）<textarea rows=3 onchange="ED.cites[${n}].effect=this.value">${esc(c.effect)}</textarea></label></div>
+ ${c.pmid?`<button class=btn2 onclick="showAbs(${n})">顯示 PubMed 摘要</button>`:''}<div id=abs${n} class=small style="max-height:160px;overflow:auto"></div></div>`).join('')||'<div class=warn>尚無文獻</div>'}
+ <div class=row><button class=btn2 onclick="sync();ED.cites.push({title:'',journal:'',year:'',url:'',groups:'',effect:''});drawEd()">＋手動新增</button> PubMed 搜尋 <input id=pq style="width:260px" value="${esc(i.active||i.name)}"><button class=btn2 onclick="pmSearch()">搜尋</button></div><div id=pr></div>
  <div class=row><button class=btn onclick="saveIng()">儲存</button><button class=btn2 onclick="dlg.close()">取消</button></div>`;if(!dlg.open)dlg.showModal()}
 function sync(){['code','name','brand','active','tfdaName','claims','cost','rationale'].forEach(k=>ED[k]=$('#e_'+k).value);['conc','minDose','maxDose'].forEach(k=>ED[k]=+$('#e_'+k).value);ED.excipient=$('#e_excipient').checked}
 async function pmSearch(){$('#pr').textContent='搜尋 PubMed 中…';try{const r=await pubmed($('#pq').value);window._pm=r;
- $('#pr').innerHTML=r.length?r.map((c,n)=>`<div class=small><button onclick="sync();ED.cites.push(_pm[${n}]);drawEd()">加入</button> <a href="${c.url}" target=_blank>${esc(c.title)}</a> <i>${esc(c.journal)}</i> ${c.year}</div>`).join(''):'<span class=warn>PubMed 查無結果（尚無文獻）</span>'}catch(e){$('#pr').textContent='PubMed 連線失敗'}}
+ $('#pr').innerHTML=r.length?r.map((c,n)=>`<div class=small><button onclick="sync();ED.cites.push({..._pm[${n}],groups:'',effect:''});drawEd()">加入</button> <a href="${c.url}" target=_blank>${esc(c.title)}</a> <i>${esc(c.journal)}</i> ${c.year}</div>`).join(''):'<span class=warn>PubMed 查無結果（尚無文獻）</span>'}catch(e){$('#pr').textContent='PubMed 連線失敗'}}
 async function saveIng(){sync();const n=ED._new;delete ED._new;if(n)DB.ingredients.push(ED);else{const k=DB.ingredients.findIndex(i=>i.id==ED.id);ED.demo=false;DB.ingredients[k]=ED}dlg.close();await saveLocal();render()}
 V.comp=()=>`<div class=card><h3>競品資料</h3><button class=btn2 onclick="editComp()">＋新增競品</button>
  <table style="margin-top:8px"><tr><th>產品</th><th>品牌</th><th>每日份量</th><th>成分（每日 mg）</th><th>來源</th><th></th></tr>${DB.competitors.map(c=>`<tr><td>${esc(c.name)}${c.demo?' <span class=demo>示範</span>':''}</td><td>${esc(c.brand)}</td><td>${esc(c.serving)}</td><td>${c.items.map(i=>esc(i.name)+' '+i.mg).join('<br>')}</td><td><a href="${esc(c.url)}" target=_blank>連結</a></td><td><button class=btn2 onclick="editComp('${c.id}')">編輯</button> <button class=btn2 onclick="delComp('${c.id}')">刪除</button></td></tr>`).join('')}</table></div>
